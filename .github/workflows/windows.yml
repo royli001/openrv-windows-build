@@ -1,0 +1,61 @@
+name: Build Open RV Windows with ProRes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 330
+    env:
+      SCCACHE_GHA_ENABLED: 'false'
+    steps:
+      - name: Check out build configuration
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          path: builder
+      - name: Check out official Open RV 4.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          repository: AcademySoftwareFoundation/OpenRV
+          ref: 27db5464a90ca19a9a30d540988ee109ee06bb7e
+          submodules: recursive
+          path: source
+      - name: Prepare official build action
+        shell: pwsh
+        run: |
+          python -m pip install PyYAML==6.0.3
+          python builder/prepare.py source
+      - name: Build using the official Windows action
+        uses: ./source/.github/actions/build-windows
+        with:
+          build-type: Release
+          qt-version: '6.5.3'
+          python-version: '3.11'
+          cmake-version: '3.31.6'
+          vfx-platform: CY2025
+          msvc-component: '14.40.17.10.x86.x64'
+          msvc-compiler: '14.40.33807'
+      - name: Verify packaged codecs
+        shell: pwsh
+        run: python builder/verify.py source/_install
+      - name: Upload portable Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRV-4.0.2-Windows-x64-ProRes-AAC
+          path: source/_install/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload diagnostic logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: |
+            source/_build/**/*.log
+            source/_build/CMakeCache.txt
+          if-no-files-found: ignore
+          retention-days: 7
