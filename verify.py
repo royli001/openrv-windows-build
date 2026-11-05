@@ -16,7 +16,7 @@ lib = ctypes.CDLL(str(dlls[0]))
 lib.avcodec_find_decoder_by_name.argtypes = [ctypes.c_char_p]
 lib.avcodec_find_decoder_by_name.restype = ctypes.c_void_p
 lib.avcodec_configuration.restype = ctypes.c_char_p
-codecs = {name: bool(lib.avcodec_find_decoder_by_name(name.encode())) for name in ['prores', 'aac', 'h264']}
+codecs = {name: bool(lib.avcodec_find_decoder_by_name(name.encode())) for name in ['prores', 'aac', 'h264', 'dnxhd']}
 assert all(codecs.values()), f'Missing required decoder: {codecs}'
 report = {'upstream': 'AcademySoftwareFoundation/OpenRV', 'version': '4.0.2',
           'commit': '27db5464a90ca19a9a30d540988ee109ee06bb7e', 'decoders': codecs,

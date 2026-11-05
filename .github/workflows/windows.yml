@@ -264,8 +264,10 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: D:/rv/_build
-        key: openrv-402-win1440-prores-short-v1-${{ github.run_id }}-${{ github.run_attempt }}
-        restore-keys: openrv-402-win1440-prores-short-v1-
+        key: openrv-402-win1440-prores-dnxhd-short-v2-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          openrv-402-win1440-prores-dnxhd-short-v2-
+          openrv-402-win1440-prores-short-v1-
     - name: Configure OpenRV
       run: 'set -o pipefail
 
@@ -287,7 +289,7 @@ jobs:
         export QT_HOME=c:/Qt/6.5.3/msvc2019_64
 
         cmake -B _build -G "Visual Studio 17 2022" -A x64 -T v143,version=14.40 -DRV_DEPS_WIN_PERL_ROOT=c:/Strawberry/perl/bin -DCMAKE_BUILD_TYPE=Release
-        -DRV_DEPS_QT_LOCATION=$QT_HOME -DRV_VFX_PLATFORM=CY2025 ''-DRV_FFMPEG_NON_FREE_DECODERS_TO_ENABLE=prores;aac;aac_fixed;aac_latm'' 2>&1
+        -DRV_DEPS_QT_LOCATION=$QT_HOME -DRV_VFX_PLATFORM=CY2025 ''-DRV_FFMPEG_NON_FREE_DECODERS_TO_ENABLE=prores;aac;aac_fixed;aac_latm;dnxhd'' 2>&1
         | tee /d/rv-configure.log
 
 
@@ -387,7 +389,7 @@ jobs:
     - name: Upload portable Windows build
       uses: actions/upload-artifact@v4
       with:
-        name: OpenRV-4.0.2-Windows-x64-ProRes-AAC
+        name: OpenRV-4.0.2-Windows-x64-ProRes-AAC-DNx
         path: D:/rv/_install/
         if-no-files-found: error
         retention-days: 7
