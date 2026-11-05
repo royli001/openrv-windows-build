@@ -13,12 +13,25 @@ jobs:
       with:
         path: builder
     - name: Check out official Open RV 4.0.2
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      with:
-        repository: AcademySoftwareFoundation/OpenRV
-        ref: 27db5464a90ca19a9a30d540988ee109ee06bb7e
-        submodules: recursive
-        path: source
+      shell: pwsh
+      run: '
+
+        $ErrorActionPreference = ''Stop''
+
+        if (Test-Path -LiteralPath ''D:\rv'') { throw ''Expected a fresh D:\rv checkout'' }
+
+        git -c core.longpaths=true clone --branch v4.0.2 --depth 1 --recurse-submodules --shallow-submodules https://github.com/AcademySoftwareFoundation/OpenRV.git
+        D:\rv
+
+        if ($LASTEXITCODE -ne 0) { throw ''Official source clone failed'' }
+
+        $actualCommit = git -C D:\rv rev-parse HEAD
+
+        if ($actualCommit.Trim() -ne ''27db5464a90ca19a9a30d540988ee109ee06bb7e'') { throw ''Unexpected source commit'' }
+
+        Write-Output "Verified official source commit: $actualCommit"
+
+        '
     - name: Install MSVC components 14.40.17.10.x86.x64
       run: "Set-Location \"C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\\"\n$InstallPath = \"C:\\Program Files\\Microsoft Visual\
         \ Studio\\2022\\Enterprise\"\n$componentsToRemove= @(\n  \"Microsoft.VisualStudio.Component.VC.14.40.17.10.x86.x64\"\n  \"Microsoft.VisualStudio.Component.VC.14.40.17.10.x86.x64.Spectre\"\
@@ -27,7 +40,7 @@ jobs:
         \ -FilePath cmd.exe -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden\n$process = Start-Process -FilePath cmd.exe -ArgumentList\
         \ $Arguments -Wait -PassThru -WindowStyle Hidden\n"
       shell: powershell
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Set up MSVC 14.40.33807
       uses: ilammy/msvc-dev-cmd@v1
       with:
@@ -49,7 +62,7 @@ jobs:
     - name: Display Python installation location
       run: python -c "import sys; print(sys.executable)"
       shell: powershell
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@0b1efabc08b657293548b77fb76cc02d26091c7e
       with:
@@ -64,11 +77,11 @@ jobs:
       if: steps.windows-cmake-cache.outputs.cache-hit != 'true'
       run: choco install cmake --version=3.31.6 --allow-downgrade --yes
       shell: powershell
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Install JOM (parallel nmake)
       run: choco install jom --yes
       shell: powershell
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Set PATH environment variable
       run: '
 
@@ -92,7 +105,7 @@ jobs:
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Set ACLOCAL_PATH environment variable
       run: '
 
@@ -112,7 +125,7 @@ jobs:
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Add Rust to PATH for msys2
       run: '
 
@@ -132,7 +145,7 @@ jobs:
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Display environment variables
       run: '
 
@@ -164,7 +177,7 @@ jobs:
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Prepare Qt folder
       run: '
 
@@ -182,7 +195,7 @@ jobs:
 
         mkdir -p /c/qt'
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Install Qt 6.5.3
       uses: jurplel/install-qt-action@v4
       with:
@@ -219,7 +232,7 @@ jobs:
 
         python -m pip install --user --upgrade -r ./requirements.txt'
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Setup sccache
       uses: mozilla-actions/sccache-action@v0.0.6
       with:
@@ -245,9 +258,17 @@ jobs:
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
+    - name: Restore previous dependency build
+      id: deps-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: D:/rv/_build
+        key: openrv-402-win1440-prores-short-v1-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: openrv-402-win1440-prores-short-v1-
     - name: Configure OpenRV
-      run: '
+      run: 'set -o pipefail
+
 
         source ~/.bash_profile
 
@@ -261,19 +282,22 @@ jobs:
 
         export WIN_PYTHON_DIR="$pythonLocation"
 
-        cmake --version
+        cmake --version 2>&1 | tee /d/rv-configure.log
 
         export QT_HOME=c:/Qt/6.5.3/msvc2019_64
 
         cmake -B _build -G "Visual Studio 17 2022" -A x64 -T v143,version=14.40 -DRV_DEPS_WIN_PERL_ROOT=c:/Strawberry/perl/bin -DCMAKE_BUILD_TYPE=Release
-        -DRV_DEPS_QT_LOCATION=$QT_HOME -DRV_VFX_PLATFORM=CY2025 ''-DRV_FFMPEG_NON_FREE_DECODERS_TO_ENABLE=prores;aac;aac_fixed;aac_latm''
+        -DRV_DEPS_QT_LOCATION=$QT_HOME -DRV_VFX_PLATFORM=CY2025 ''-DRV_FFMPEG_NON_FREE_DECODERS_TO_ENABLE=prores;aac;aac_fixed;aac_latm'' 2>&1
+        | tee /d/rv-configure.log
 
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
+      id: configure
     - name: Build OpenRV dependencies
-      run: '
+      run: 'set -o pipefail
+
 
         source ~/.bash_profile
 
@@ -287,12 +311,16 @@ jobs:
 
         export WIN_PYTHON_DIR="$pythonLocation"
 
-        cmake --build _build --config Release --target dependencies --parallel=$(python -c ''import os; print(os.cpu_count())'') -v'
+        cmake --build _build --config Release --target dependencies --parallel=$(python -c ''import os; print(os.cpu_count())'') -v 2>&1 | tee
+        /d/rv-dependencies.log
+
+        '
       shell: msys2 {0}
       id: build_deps
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Build OpenRV main executable
-      run: '
+      run: 'set -o pipefail
+
 
         source ~/.bash_profile
 
@@ -306,9 +334,12 @@ jobs:
 
         export WIN_PYTHON_DIR="$pythonLocation"
 
-        cmake --build _build --config Release --target main_executable --parallel=$(python -c ''import os; print(os.cpu_count())'') -v'
+        cmake --build _build --config Release --target main_executable --parallel=$(python -c ''import os; print(os.cpu_count())'') -v 2>&1 |
+        tee /d/rv-main.log
+
+        '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Tests
       continue-on-error: true
       run: '
@@ -331,7 +362,7 @@ jobs:
 
         '
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Install OpenRV
       run: '
 
@@ -349,15 +380,15 @@ jobs:
 
         cmake --install _build --prefix $(pwd)/_install --config Release'
       shell: msys2 {0}
-      working-directory: ${{ github.workspace }}/source
+      working-directory: D:/rv
     - name: Verify packaged codecs
       shell: pwsh
-      run: python builder/verify.py source/_install
+      run: python builder/verify.py D:/rv/_install
     - name: Upload portable Windows build
       uses: actions/upload-artifact@v4
       with:
         name: OpenRV-4.0.2-Windows-x64-ProRes-AAC
-        path: source/_install/
+        path: D:/rv/_install/
         if-no-files-found: error
         retention-days: 7
     - name: Upload diagnostic logs
@@ -365,12 +396,23 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: build-diagnostics
-        path: 'source/_build/**/*.log
+        path: 'D:/rv-configure.log
 
-          source/_build/CMakeCache.txt
+          D:/rv-dependencies.log
 
-          '
+          D:/rv-main.log
+
+          D:/rv/_build/CMakeCache.txt
+
+          D:/rv/_build/CMakeFiles/CMakeConfigureLog.yaml'
         if-no-files-found: ignore
         retention-days: 7
+    - name: Save dependency build for subsequent runs
+      if: always() && steps.configure.outcome == 'success'
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: D:/rv/_build
+        key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 'on':
   workflow_dispatch: null
